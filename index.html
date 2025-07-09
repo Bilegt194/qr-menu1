@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bilegt's QR Menu</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f2f2f2;
+    }
+
+    h2 {
+      text-align: center;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .tab-button {
+      padding: 10px 20px;
+      margin: 5px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .tab-button.active {
+      background-color: #0056b3;
+    }
+
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .menu-item {
+      background: white;
+      padding: 15px;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
+      text-align: center;
+    }
+
+    .menu-item button {
+      margin-top: 10px;
+      padding: 5px 10px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .menu-item button:hover {
+      background: #45a049;
+    }
+
+    #cart-items, #cart-modal, #qr-modal, #order-complete {
+      background: white;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    #order-complete {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #28a745;
+      color: #fff;
+      font-size: 2em;
+      padding: 40px 60px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(40, 167, 69, 0.7);
+      text-align: center;
+      z-index: 1200;
+      opacity: 0;
+    }
+
+    #order-complete.show {
+      display: block;
+      animation: fadeIn 0.5s forwards;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translate(-50%, -60%);
+      }
+      to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+      }
+    }
+  </style>
+</head>
+<body>
+  <h2>🍽️ Bilegt's Menu 🍽️</h2>
+
+  <div class="tabs" id="category-tabs"></div>
+
+  <div id="menu-container" class="menu-grid"></div>
+
+  <h3>Your Cart 🛒</h3>
+  <ul id="cart-items"></ul>
+  <p>Total: <span id="total">0</span>₮</p>
+  <button onclick="checkout()">💳 Pay Now</button>
+  <button id="show-qr-btn" onclick="showQR()">📱 Show QR Code</button>
+
+  <div id="cart-modal" class="hidden">
+    <h3>🛒 Review Your Order</h3>
+    <ul id="cart-config-items"></ul>
+    <p>Total: <span id="modal-total">0</span>₮</p>
+    <button onclick="confirmCheckout()">✅ Confirm Order</button>
+    <button onclick="closeModal()">❌ Cancel</button>
+  </div>
+
+  <div id="qr-modal" class="hidden">
+    <h3>📱 Scan to Order</h3>
+    <div id="qrcode"></div>
+    <button onclick="closeQR()">❌ Close</button>
+  </div>
+
+  <div id="order-complete" class="hidden">
+    <div id="checkmark">✔️</div>
+    Order Complete!
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+    const items = [
+      // Burgers
+      { name: "Cheeseburger", price: 12000, category: "Burger" },
+      { name: "Whopper Burger", price: 13000, category: "Burger" },
+      { name: "Bacon Burger", price: 13500, category: "Burger" },
+
+      // More
+      { name: "French Fries", price: 7500, category: "More" },
+      { name: "Club Sandwich", price: 11000, category: "More" },
+
+      // Meat (non-chicken)
+      { name: "Grilled Steak", price: 30000, category: "Meat" },
+      { name: "Lamb Chops", price: 32000, category: "Meat" },
+      { name: "Beef Ribs", price: 28000, category: "Meat" },
+      { name: "Pork Belly", price: 29000, category: "Meat" },
+
+      // Salad
+      { name: "Caesar Salad", price: 9500, category: "Salad" },
+      { name: "Greek Salad", price: 11000, category: "Salad" },
+      { name: "Garden Salad", price: 9000, category: "Salad" },
+      { name: "Beetroot Salad", price: 9500, category: "Salad" },
+
+      // Pizza
+      { name: "Pepperoni Pizza", price: 18000, category: "Pizza" },
+      { name: "Meat Pizza", price: 19000, category: "Pizza" },
+      { name: "Hawaii Pizza", price: 18500, category: "Pizza" },
+
+      // Asian
+      { name: "Chicken Ramen", price: 14500, category: "Asian" },
+      { name: "Sushi Set", price: 28000, category: "Asian" },
+      { name: "Fried Rice", price: 10000, category: "Asian" },
+      { name: "Tonkotsu Ramen", price: 15000, category: "Asian" },
+      { name: "Dumplings", price: 12000, category: "Asian" },
+
+      // Drinks
+      { name: "Fresh Juice", price: 5000, category: "Drinks" },
+      { name: "Chocolate Milkshake", price: 6500, category: "Drinks" },
+      { name: "Coca Cola", price: 3000, category: "Drinks" },
+      { name: "Sprite", price: 3000, category: "Drinks" },
+      { name: "Strawberry Milkshake", price: 7000, category: "Drinks" },
+      { name: "Blueberry Milkshake", price: 7000, category: "Drinks" },
+      { name: "Oreo Milkshake", price: 7500, category: "Drinks" },
+      { name: "Chocolate Smoothie", price: 7000, category: "Drinks" },
+      { name: "Strawberry Smoothie", price: 7000, category: "Drinks" },
+
+      // Pasta
+      { name: "Spaghetti Bolognese", price: 16000, category: "Pasta" },
+      { name: "Carbonara Pasta", price: 17000, category: "Pasta" },
+
+      // Chicken
+      { name: "Fried Chicken", price: 13000, category: "Chicken" },
+      { name: "Teriyaki Chicken", price: 16000, category: "Chicken" },
+      { name: "Chicken Nuggets", price: 8500, category: "Chicken" },
+
+      // Dessert
+      { name: "Pancakes", price: 9000, category: "Dessert" },
+      { name: "Mango Ice Cream", price: 6000, category: "Dessert" },
+      { name: "Lemon Ice Cream", price: 6000, category: "Dessert" },
+      { name: "Blueberry Ice Cream", price: 6000, category: "Dessert" },
+    ];
+
+    const cart = [];
+    let total = 0;
+
+    // Rearrange categories: "More" last
+    const categorySet = [...new Set(items.map(item => item.category))];
+    const categories = categorySet.filter(c => c !== "More").concat("More");
+
+    const tabsContainer = document.getElementById("category-tabs");
+    const menuContainer = document.getElementById("menu-container");
+
+    categories.forEach(category => {
+      const button = document.createElement("button");
+      button.textContent = category;
+      button.className = "tab-button";
+      button.onclick = () => showCategory(category, button);
+      tabsContainer.appendChild(button);
+    });
+
+    function showCategory(category, activeBtn) {
+      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+      activeBtn.classList.add('active');
+      menuContainer.innerHTML = "";
+      items.filter(item => item.category === category).forEach(item => {
+        const div = document.createElement("div");
+        div.className = "menu-item";
+        div.innerHTML = `<h4>${item.name}</h4><p>${item.price.toLocaleString()}₮</p><button onclick="addToCart('${item.name}', ${item.price})">Add</button>`;
+        menuContainer.appendChild(div);
+      });
+    }
+
+    function addToCart(name, price) {
+      cart.push({ name, price });
+      updateCart();
+    }
+
+    function updateCart() {
+      const cartItems = document.getElementById("cart-items");
+      cartItems.innerHTML = "";
+      total = 0;
+      cart.forEach((item, i) => {
+        total += item.price;
+        const li = document.createElement("li");
+        li.textContent = `${item.name} - ${item.price.toLocaleString()}₮`;
+        const removeBtn = document.createElement("button");
+        removeBtn.textContent = "Remove";
+        removeBtn.onclick = () => {
+          cart.splice(i, 1);
+          updateCart();
+        };
+        li.appendChild(removeBtn);
+        cartItems.appendChild(li);
+      });
+      document.getElementById("total").textContent = total.toLocaleString();
+    }
+
+    function checkout() {
+      if (cart.length === 0) return alert("Your cart is empty!");
+      document.getElementById("cart-modal").classList.remove("hidden");
+      const configItems = document.getElementById("cart-config-items");
+      configItems.innerHTML = "";
+      cart.forEach(item => {
+        const li = document.createElement("li");
+        li.textContent = `${item.name} - ${item.price.toLocaleString()}₮`;
+        configItems.appendChild(li);
+      });
+      document.getElementById("modal-total").textContent = total.toLocaleString();
+    }
+
+    function confirmCheckout() {
+      document.getElementById("cart-modal").classList.add("hidden");
+      cart.length = 0;
+      updateCart();
+      showOrderComplete();
+      closeQR();
+    }
+
+    function closeModal() {
+      document.getElementById("cart-modal").classList.add("hidden");
+    }
+
+    function showOrderComplete() {
+      const box = document.getElementById("order-complete");
+      box.classList.remove("hidden");
+      box.classList.add("show");
+      setTimeout(() => {
+        box.classList.remove("show");
+        box.classList.add("hidden");
+      }, 3000);
+    }
+
+    function showQR() {
+      const modal = document.getElementById("qr-modal");
+      modal.classList.remove("hidden");
+      const qr = document.getElementById("qrcode");
+      qr.innerHTML = "";
+      new QRCode(qr, {
+        text: window.location.href,
+        width: 200,
+        height: 200
+      });
+    }
+
+    function closeQR() {
+      document.getElementById("qr-modal").classList.add("hidden");
+      document.getElementById("qrcode").innerHTML = "";
+    }
+
+    // Show first tab by default
+    document.querySelector(".tab-button")?.click();
+  </script>
+</body>
+</html>
